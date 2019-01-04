@@ -24,6 +24,7 @@ type State = {|
 |};
 
 const noop = () => {};
+let consecutiveSecondaryTaps = 0;
 
 // shared management of mousedown without needing to call preventDefault()
 const mouseDownMarshal: EventMarshal = createEventMarshal();
@@ -60,6 +61,21 @@ export default ({
   ) => {
     schedule.cancel();
     unbindWindowEvents();
+    mouseDownMarshal.reset();
+    if (shouldBlockClick) {
+      postDragEventPreventer.preventNext();
+    }
+    setState({
+      isDragging: false,
+      pending: null,
+    });
+    fn();
+  };
+  const stopDraggingButKeepBoundWindowEvents = (
+    fn?: Function = noop,
+    shouldBlockClick?: boolean = true,
+  ) => {
+    schedule.cancel();
     mouseDownMarshal.reset();
     if (shouldBlockClick) {
       postDragEventPreventer.preventNext();
@@ -116,21 +132,13 @@ export default ({
         // Already dragging
         if (state.isDragging) {
           // preventing default as we are using this event
-          event.preventDefault();
           schedule.move(point);
           return;
         }
 
-        // There should be a pending drag at this point
-
         if (!state.pending) {
-          // this should be an impossible state
-          // we cannot use kill directly as it checks if there is a pending drag
-          stopPendingDrag();
-          invariant(
-            false,
-            'Expected there to be an active or pending drag when window pointermove event is received',
-          );
+          // this can happen when a mouse-type pointer is moved after a touch-type pointer is down (*I think*)
+          return;
         }
 
         startDragging(() =>
@@ -144,27 +152,46 @@ export default ({
     {
       eventName: 'pointerup',
       fn: (event: PointerEvent) => {
-        console.log('pointerup');
-        if (state.pending) {
-          stopPendingDrag();
-          return;
-        }
-
         // preventing default as we are using this event
         event.preventDefault();
-        stopDragging(callbacks.onDrop);
+
+        if (event.isPrimary) {
+          if (state.pending) {
+            stopPendingDrag();
+            return;
+          }
+  
+          stopDragging(callbacks.onDrop);
+        } else {
+          if (state.pending) {
+            stopDraggingButKeepBoundWindowEvents(noop, false);
+            return;
+          }
+  
+          stopDraggingButKeepBoundWindowEvents(callbacks.onDrop);
+        }
       },
     },
     {
       eventName: 'pointerdown',
       fn: (event: PointerEvent) => {
         console.log('pointerdown');
-        // this can happen during a drag when the user clicks a button
-        // other than the primary mouse button
-        // if (state.isDragging) {
-          event.preventDefault();
-        // }
-        stopDragging(callbacks.onCancel);
+        event.preventDefault();
+
+        if (event.isPrimary) {
+          return;
+        }
+
+        /* the below code is supposed to detect double taps but doesn't work yet */
+        if (event.pointerType == 'touch') {
+          if (consecutiveSecondaryTaps == 1) { // this is a double tap
+            console.log('this is a double tap');
+            consecutiveSecondaryTaps = 0;
+          } else if (consecutiveSecondaryTaps == 0) {
+            console.log('first tap');
+            consecutiveSecondaryTaps++;
+          }
+        }
       },
     },
     {
