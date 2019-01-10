@@ -21,6 +21,8 @@ type State = {|
 
 const noop = () => {};
 
+const pointersDown = [];
+
 // shared management of pointerdown without needing to call preventDefault()
 const pointerDownMarshal: EventMarshal = createEventMarshal();
 
@@ -97,6 +99,7 @@ export default ({
     {
       eventName: 'pointermove',
       fn: (event: PointerEvent) => {
+        console.log('pointermove');
         // preventing default as we are using this event
         event.preventDefault();
         const clientX = event.clientX;
@@ -138,6 +141,14 @@ export default ({
     {
       eventName: 'pointerup',
       fn: (event: PointerEvent) => {
+        console.log('pointerup');
+        event.preventDefault();
+        if (state.pending) {
+          return;
+        }
+
+        stopDragging(callbacks.onDrop);
+        /*
         if (state.pending) {
           stopPendingDrag();
           return;
@@ -146,12 +157,42 @@ export default ({
         // preventing default as we are using this event
         event.preventDefault();
         stopDragging(callbacks.onDrop);
+        */
       },
     },
     {
       eventName: 'pointerdown',
       fn: (event: PointerEvent) => {
+        console.log('pointerdown');
         event.preventDefault();
+      },
+    },
+    {
+      eventName: 'click',
+      fn: (event: Event) => {
+        console.log('click');
+        event.preventDefault();
+        const clientX = event.clientX;
+        const clientY = event.clientY;
+
+        const point: Position = {
+          x: clientX,
+          y: clientY,
+        };
+
+        startPendingDrag(point);
+      },
+    },
+    {
+      eventName: 'focus',
+      fn: (event: Event) => {
+        console.log('focus');
+      },
+    },
+    {
+      eventName: 'blur',
+      fn: (event: Event) => {
+        console.log('blur');
       },
     },
     // Cancel on page visibility change
